@@ -6,14 +6,6 @@
 ;; Juan Pablo Robayo Maestre 202156743
 ;;-----------------------------------------
 
-;; <program>   ::= <expression>
-;; <expression>::= <number>
-;;             ::= <identifier>
-;;             ::= <primitive> ({<expression>} ∗( , ))
-;;             ::= if <expression> then <expression> else <expression>
-;;             ::= let (<identifier> = <expression>)∗ in <expression>
-;;             ::= <circuit>
-
 ;******************************************************************************************
 ;;;;; Interpretador para lenguaje con condicionales y ligadura local
 

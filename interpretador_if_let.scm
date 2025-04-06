@@ -1,4 +1,11 @@
 #lang eopl
+
+;;-----------------------------------------
+;; Jhonier Mendez Bravo 202372226
+;; David Santiago Guerrero Delgado 202324594
+;; Juan Pablo Robayo Maestre 202156743
+;;-----------------------------------------
+
 ;******************************************************************************************
 ;;;;; Interpretador para lenguaje con condicionales y ligadura local
 
@@ -115,52 +122,11 @@
 ;eval-program: <programa> -> numero
 ; función que evalúa un programa teniendo en cuenta un ambiente dado (se inicializa dentro del programa)
 
-;definición del tipo de dato ambiente
-(define-datatype environment environment?
-  (empty-env-record)
-  (extended-env-record (syms (list-of symbol?))
-                       (vals (list-of scheme-value?))
-                       (env environment?)))
-
-(define scheme-value? (lambda (v) #t))
-
-;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
-;función que crea un ambiente extendido
-(define extend-env
-  (lambda (syms vals env)
-    (extended-env-record syms vals env))) 
-
-;empty-env:      -> enviroment
-;función que crea un ambiente vacío
-(define empty-env  
-  (lambda ()
-    (empty-env-record)))       ;llamado al constructor de ambiente vacío 
-
-(define list-find-position
-  (lambda (sym los)
-    (list-index (lambda (sym1) (eqv? sym1 sym)) los)))
-
-(define list-index
-  (lambda (pred ls)
-    (cond
-      ((null? ls) #f)
-      ((pred (car ls)) 0)
-      (else (let ((list-index-r (list-index pred (cdr ls))))
-              (if (number? list-index-r)
-                (+ list-index-r 1)
-                #f))))))
-
-;función que busca un símbolo en un ambiente
-(define apply-env
-  (lambda (env sym)
-    (cases environment env
-      (empty-env-record ()
-                        (eopl:error 'apply-env "No binding for ~s" sym))
-      (extended-env-record (syms vals env)
-                           (let ((pos (list-find-position sym syms)))
-                             (if (number? pos)
-                                 (list-ref vals pos)
-                                 (apply-env env sym)))))))
+(define eval-program
+  (lambda (pgm)
+    (cases program pgm
+      (a-program (body)
+                 (eval-expression body (init-env))))))
 
 (define init-env
   (lambda ()
@@ -168,12 +134,6 @@
      '(A B)
      '(True False)
      (empty-env))))
-
-(define eval-program
-  (lambda (pgm)
-    (cases program pgm
-      (a-program (body)
-                 (eval-expression body (init-env))))))
 
 ;eval-expression: <expression> <enviroment> -> numero
 ; evalua la expresión en el ambiente de entrada
@@ -209,6 +169,62 @@
   (lambda (rand env)
     (eval-expression rand env)))
 
+;****************************************************************************************
+;Funciones Auxiliares
+
+; funciones auxiliares para encontrar la posición de un símbolo
+; en la lista de símbolos de unambiente
+
+(define list-find-position
+  (lambda (sym los)
+    (list-index (lambda (sym1) (eqv? sym1 sym)) los)))
+
+(define list-index
+  (lambda (pred ls)
+    (cond
+      ((null? ls) #f)
+      ((pred (car ls)) 0)
+      (else (let ((list-index-r (list-index pred (cdr ls))))
+              (if (number? list-index-r)
+                (+ list-index-r 1)
+                #f))))))
+
+;*******************************************************************************************
+;Ambientes
+
+;definición del tipo de dato ambiente
+(define-datatype environment environment?
+  (empty-env-record)
+  (extended-env-record (syms (list-of symbol?))
+                       (vals (list-of scheme-value?))
+                       (env environment?)))
+
+(define scheme-value? (lambda (v) #t))
+
+;empty-env:      -> enviroment
+;función que crea un ambiente vacío
+(define empty-env  
+  (lambda ()
+    (empty-env-record)))       ;llamado al constructor de ambiente vacío 
+
+;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
+;función que crea un ambiente extendido
+(define extend-env
+  (lambda (syms vals env)
+    (extended-env-record syms vals env))) 
+
+;función que busca un símbolo en un ambiente
+(define apply-env
+  (lambda (env sym)
+    (cases environment env
+      (empty-env-record ()
+                        (eopl:error 'apply-env "No binding for ~s" sym))
+      (extended-env-record (syms vals env)
+                           (let ((pos (list-find-position sym syms)))
+                             (if (number? pos)
+                                 (list-ref vals pos)
+                                 (apply-env env sym)))))))
+
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args env)
@@ -229,103 +245,63 @@
   (lambda (x)
     (eq? x 'True)))
 
+;;Pruebas
+(true-value? 'True)
+(true-value? 'False)
+
+; funcion que retorna el ultimo gate de un arbol de sintaxis abstracta
 (define ultimo-gate
   (lambda (gl)
         (ultimo-de-la-lista gl)))
 
+; funcion recursiva que busca el ultimo elemento de la lista
 (define ultimo-de-la-lista
   (lambda (lst)
     (if (null? (cdr lst))
         (car lst)
         (ultimo-de-la-lista (cdr lst)))))
 
+; funcion auxiliar para calcular el resultado de cada gate en el arbol de sintaxis abstracta
 (define eval-circuit-aux
   (lambda (el-gate-list env)
     (cases gate-list el-gate-list
       (gate-list-exp (el-gate-list)
-         ;(display "-----") (display (ultimo-gate el-gate-list))
          (eval-gate-final el-gate-list (ultimo-gate el-gate-list) env)
-        ;(display (display (eval-gate-final el-gate-list (ultimo-gate el-gate-list) env)) (display "-----------------"))
       )
     )
   )
 )
 
+; funcion que manda a evaluar y retorna el valor del ultimo gate
 (define eval-gate-final
   (lambda (gates final-gate env)
     (if (null? gates)
       (apply-env env (get-id final-gate)) ;; retorna el valor del gate final
       (eval-gate-final (cdr gates) final-gate (eval-gate (car gates) env))   
       )
-    ;(display env)
     )
   )
 
-
-;(define eval-gate-final
-;  (lambda (gates env)
-;    (if (null? (cdr gates))
-;        (if (eval-gate (car gates) env gates)
-;            'True
-;            'False)
-;        (eval-gate-final (cdr gates) env))))
-
+; funcion que retorna el id de un gate
 (define get-id
   (lambda (g)
     (cases gate g
       (gate-exp (id type inputs) id))))
 
-;; (define eval-gate-final-helper
-;;   (lambda (gates env last-id)
-;;     (if (null? gates)
-;;         (apply-env env last-id)
-;;         (eval-gate-final-helper
-;;          (cdr gates)
-;;          (extend-env
-;;           (list (gate-id (car gates)))
-;;           (list (display-and-eval-gate (car gates) env gates))
-;;           env)
-;;          last-id))))
-
-;; (define eval-gate-final-recur
-;;   (lambda (rest-gates env all-gates)
-;;     (if (null? rest-gates)
-;;         (apply-env env (gate-id (car (reverse all-gates))))
-;;         (eval-gate-final-helper (car rest-gates)
-;;                                 (cdr rest-gates)
-;;                                 env
-;;                                 all-gates))))
-
-(define gate-id
-  (lambda (g)
-    (cases gate g
-      (gate-exp (id typ inputs) id))))
-
+; funcion que evalua un gate
 (define eval-gate
   (lambda (el-gate env)
     (cases gate el-gate
       (gate-exp (id typ inputs)
         (let ((args (eval-inputs inputs env)))
-          ;(eval-type typ args)
           (extend-env (list id) (list (eval-type typ args)) env)
-          ;(display "Success")
-          ;(display args)
-          ;(display typ)
-          ;(display (extend-env (list id) (list (eval-type typ args)) env))
         )
       )
     )
   )
 )
 
-;; ;(eval-circuit-exp circ env)
-;; (define eval-bool
-;;   (lambda (exp env)
-;;     (cases bool exp
-;;       (bool-exp-true () 'True)    ; Si la expresión es bool-exp-true, devolvemos #t
-;;       (bool-exp-false () 'False)   ; Si la expresión es bool-exp-false, devolvemos #f
-;;       )))
-
+; funcion que evalua el tipo de circuito
 (define eval-type
   (lambda (typ inputs) ; typ type, 
     (cases type typ
@@ -339,6 +315,7 @@
         (eval-xor inputs))  ; Caso XOR
     )))
 
+; funcion que evalua el tipo and
 (define eval-and
   (lambda (inputs)
     (if (null? inputs)
@@ -351,6 +328,7 @@
   )
 )
 
+; funcion que evalua el tipo or
 (define eval-or
   (lambda (inputs)
     (if (null? inputs)
@@ -359,13 +337,14 @@
             'True
             (eval-or (cdr inputs))))))
 
+; funcion que evalua el tipo not
 (define eval-not
   (lambda (inputs)
     (if (eqv? (car inputs) 'True)
         'False
         'True))) ; Solo se usa el primero, como unario
 
-;evaluar un gate con type xor
+; funcion que evalua el tipo xor
 (define eval-xor
   (lambda (list-inputs)
     (if (null? list-inputs)
@@ -374,13 +353,14 @@
           [(eqv? (car list-inputs) 'False) (eval-xor (cdr list-inputs))]
           [(eqv? (car list-inputs) 'True) (if (eqv? (eval-or(cdr list-inputs)) 'True)  'False 'True)]))))
 
+; funcion que manda a evaluar una lista de inputs perteneciente a un gate
 (define eval-inputs
   (lambda (inputs env)
     (cases input-list inputs
       (input-list-id (lst)
         (eval-inputs-list lst env)))))
 
-
+; funcion que manda a evaluar inidividualmente cada input perteneciente a un gate
 (define eval-inputs-list
   (lambda (inputs env)
     (if (null? inputs)
@@ -388,15 +368,7 @@
         (cons (eval-input (car inputs) env)
               (eval-inputs-list (cdr inputs) env)))))
 
-;(define eval-input
-;  (lambda (in env gates)
-;    (cases input in
-;      (ref-input (id) (apply-env env id))
-;      (bool-input (exp)
-;        (cases bool exp
-;          (bool-exp-true () #t)
-;          (bool-exp-false () #f))))))
-
+; funcion que evalua un input
 (define eval-input
   (lambda (in env)
     (cases input in
@@ -408,42 +380,13 @@
           (bool-exp-false () 'False))))))
 
 
-
-(define bound-id?
-  (lambda (id env)
-    (cases environment env
-      (empty-env-record () (bool-exp-false))
-      (extended-env-record (vars vals old-env)
-        (if (null? vars)
-            (bound-id? id old-env)
-            (if (eq? (car vars) id)
-                (bool-exp-true)
-                (bound-id? id old-env)))))))
-
-
 ;###########################################################
 ; Implementacion
 ;###########################################################
 
 
-
-;*******************************************************************************************
-;Ambientes
-
-
-
-;****************************************************************************************
-;Funciones Auxiliares
-
-; funciones auxiliares para encontrar la posición de un símbolo
-; en la lista de símbolos de unambiente
-
-
-
 ;******************************************************************************************
 ;Pruebas
-
-#|
 
 (scan&parse "eval-circuit((circuit (gate-list (gate G1 or (input-list True False))
                                                (gate G2 and (input-list True True))
@@ -458,54 +401,48 @@
 (gate G3 not (input-list G2))
 (gate G4 and (input-list G1 G3))))")
 
-
+(scan&parse "
 let
  c1 = (circuit (gate-list (gate G1 or (input-list A B))
                           (gate G2 and (input-list A B))
                           (gate G3 not (input-list G2))
-                          (gate G4 and (input-list G1 G3))
-))
-
+                          (gate G4 and (input-list G1 G3))))
 in
- eval-circuit(c1)
+ eval-circuit(c1)")
 
 ;; AND
-
+(eval-program (scan&parse "
 let
- c1 = (circuit (gate-list (gate G1 and (input-list A B))
-))
-
+ c1 = (circuit (gate-list (gate G1 and (input-list A B))))
 in
- eval-circuit(c1)
+ eval-circuit(c1)"))
 
 ;; OR
-
+(eval-program (scan&parse "
 let
- c1 = (circuit (gate-list (gate G1 or (input-list A B))
-))
-
+ c1 = (circuit (gate-list (gate G1 or (input-list A B))))
 in
- eval-circuit(c1)
+ eval-circuit(c1)"))
 
 ;; NOT
-
+(eval-program (scan&parse "
 let
- c1 = (circuit (gate-list (gate G1 not (input-list A))
-))
-
+ c1 = (circuit (gate-list (gate G1 not (input-list A))))
 in
- eval-circuit(c1)
+ eval-circuit(c1)"))
 
 ;; XOR
-
+(eval-program (scan&parse "
 let
- c1 = (circuit (gate-list (gate G1 xor (input-list A A))
-))
-
+ c1 = (circuit (gate-list (gate G1 xor (input-list A A))))
 in
- eval-circuit(c1)
+ eval-circuit(c1)")
+)
 
-|#
-
+(eval-program (scan&parse "
+let
+ c1 = (circuit (gate-list (gate G1 xor (input-list A A))))
+in
+ eval-circuit(c1)"))
 
 (interpretador)

@@ -281,7 +281,7 @@
 (define apply-circuit-primitive
   (lambda (prim args env)
     (cases circuit-primitive prim
-      (connect-circuits () (connect-circuits-aux (car args) (cadr args) (caddr args) env))
+      (connect-circuits () (list-to-gate-list (connect-circuits-aux (car args) (cadr args) (caddr args) env)))
       (else 'FALTAMERGECIRCUITS)
     )
   )
@@ -417,6 +417,13 @@
     )
   )
 )
+
+(define list-to-gate-list
+  (lambda (lst)
+    (gate-list-exp lst)
+  )
+)
+
 
 ;; Reemplaza las entradas igual a old-id por new-id en cada gate
 (define change-gate-list-entry
@@ -592,6 +599,25 @@ c2 = (circuit (gate-list (gate G5 or (input-list C D))
 ))
 in
 connect-circuits(c1, c2, C)
+|#
+
+#|
+let
+c1 = (circuit (gate-list (gate G1 or (input-list A B))
+                         (gate G2 and (input-list A B))
+                         (gate G3 not (input-list G2))
+                         (gate G4 and (input-list G1 G3))
+))
+
+c2 = (circuit (gate-list (gate G5 or (input-list C D))
+                         (gate G6 and (input-list C D))
+                         (gate G7 and (input-list G5 G6))
+))
+in
+let
+c3 = connect-circuits(c1, c2, C)
+in
+eval-circuit(c3)
 |#
 
 (interpretador)

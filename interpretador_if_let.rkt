@@ -50,42 +50,48 @@
    ("-" digit (arbno digit)) number)))
 
 ;Especificación Sintáctica (gramática)
-
 (define grammar-simple-interpreter
   '((program (expression) a-program)
     (expression (number) lit-exp)
     (expression (identifier) var-exp)
-    (expression
-     (primitive "(" (separated-list expression ",")")")
-     primapp-exp)
-    ; características adicionales
+    (expression (primitive "(" (separated-list expression ",")")")
+                primapp-exp)
     (expression ("if" expression "then" expression "else" expression)
                 if-exp)
     (expression ("let" (arbno identifier "=" expression) "in" expression)
                 let-exp)
-    ;Caracteristicas especiales para el tercer taller
+    
+    ;-------Caracteristicas especiales para el tercer taller-------
     (expression ("(" "circuit" gate-list ")") circuit-exp)
+    (expression (circuit-primitive "(" (separated-list expression ",")")")
+                cirapp-exp)
+    
     (bool ("True") bool-exp-true)
     (bool ("False") bool-exp-false)
-    (input (bool) bool-input)
-    (input (identifier) ref-input)
-    (input-list ("(" "input-list" (arbno input) ")") input-list-id)
+    
     (type ("xor") xor-type)
     (type ("and") and-type)
     (type ("or") or-type)
     (type ("not") not-type)
+    
+    (input (bool) bool-input)
+    (input (identifier) ref-input)
+    (input-list ("(" "input-list" (arbno input) ")") input-list-id)
+    
     (gate ("(" "gate" identifier type input-list  ")") gate-exp)
     (gate-list ( "(" "gate-list" (arbno gate) ")") gate-list-exp)
-    ;(circuit ("(" "circuit" gate-list ")") cirtuit-case)
-    ;;;;;;
+    
+    ;-----------------Primitivas-----------------
     (primitive ("+") add-prim)
-    (primitive ("eval-circuit") eval-circuit)
-    (primitive ("connect-circuits") connect-circuits)
-    (primitive ("merge-circuit") merge-circuit)
     (primitive ("-") substract-prim)
     (primitive ("*") mult-prim)
     (primitive ("add1") incr-prim)
-    (primitive ("sub1") decr-prim)))
+    (primitive ("sub1") decr-prim)
+    (primitive ("eval-circuit") eval-circuit)
+    (circuit-primitive ("connect-circuits") connect-circuits)
+    (circuit-primitive ("merge-circuit") merge-circuit)
+  )
+)
 
 ;Construidos automáticamente:
 
@@ -131,8 +137,8 @@
 (define init-env
   (lambda ()
     (extend-env
-     '(A B)
-     '(True False)
+     '(A B C D)
+     '(True False False True)
      (empty-env))))
 
 ;eval-expression: <expression> <enviroment> -> numero
@@ -154,10 +160,32 @@
                (let ((args (eval-rands rands env)))
                  (eval-expression body
                                   (extend-env ids args env))))
-      (circuit-exp (circ)
-                   circ)
+      (circuit-exp (circ) circ)
+      (cirapp-exp (prim rands)
+  (let ((evaluated-args (eval-all-but-last rands env))
+        (symbol-arg (get-symbol-from-last rands)))
+    (apply-circuit-primitive prim (append evaluated-args (list symbol-arg)) env)))
 
-      )))
+    )
+  )
+)
+
+(define eval-all-but-last
+  (lambda (rands env)
+    (cond
+      [(null? rands) '()]
+      [(null? (cdr rands)) '()] ; último, no se evalúa
+      [else
+       (cons (eval-expression (car rands) env)
+             (eval-all-but-last (cdr rands) env))])))
+
+(define get-symbol-from-last
+  (lambda (rands)
+    (let ((last-exp (car (reverse rands))))
+      (cases expression last-exp
+        (var-exp (id) id)
+        (else (eopl:error 'get-symbol-from-last "Último argumento no es un símbolo válido"))))))
+
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
@@ -211,7 +239,7 @@
 ;función que crea un ambiente extendido
 (define extend-env
   (lambda (syms vals env)
-    (extended-env-record syms vals env))) 
+    (extended-env-record syms vals env)))
 
 ;función que busca un símbolo en un ambiente
 (define apply-env
@@ -225,6 +253,17 @@
                                  (list-ref vals pos)
                                  (apply-env env sym)))))))
 
+(define search-env
+  (lambda (env val)
+    (cases environment env
+      (empty-env-record ()
+        #f)
+      (extended-env-record (syms vals rest-env)
+        (let ((pos (list-find-position val vals)))
+          (if (number? pos)
+              (list-ref syms pos)
+              (search-env rest-env val)))))))
+
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args env)
@@ -235,10 +274,18 @@
       (incr-prim () (+ (car args) 1))
       (decr-prim () (- (car args) 1))
       (eval-circuit () (eval-circuit-aux (car args) env))
-      (else 'FALTACONNECTCIRCUITS))
-    ))
+    )
+  )
+)
 
-;eval-gates (car args) env)
+(define apply-circuit-primitive
+  (lambda (prim args env)
+    (cases circuit-primitive prim
+      (connect-circuits () (connect-circuits-aux (car args) (cadr args) (caddr args) env))
+      (else 'FALTAMERGECIRCUITS)
+    )
+  )
+)
   
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
@@ -353,6 +400,92 @@
           [(eqv? (car list-inputs) 'False) (eval-xor (cdr list-inputs))]
           [(eqv? (car list-inputs) 'True) (if (eqv? (eval-or(cdr list-inputs)) 'True)  'False 'True)]))))
 
+(define connect-circuits-aux
+  (lambda (F-Circuit S-Circuit Entry env)
+    (cases gate-list F-Circuit
+      (gate-list-exp (el1-gate-list)
+        (let ((new-id (get-id (ultimo-gate el1-gate-list))))
+          (cases gate-list S-Circuit
+            (gate-list-exp (el2-gate-list)
+              (let ((new-second (change-gate-list-entry el2-gate-list Entry new-id)))
+                (append-gate-lists el1-gate-list new-second)
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+)
+
+;; Reemplaza las entradas igual a old-id por new-id en cada gate
+(define change-gate-list-entry
+  (lambda (gate-list old-id new-id)
+    (if (null? gate-list)
+      '()
+      (cons (change-gate-entry (car gate-list) old-id new-id)
+            (change-gate-list-entry (cdr gate-list) old-id new-id))
+    )
+  )
+)
+
+(define change-gate-entry
+  (lambda (g old-id new-id)
+    (cases gate g
+      (gate-exp (id type inputs)
+        (gate-exp id type (change-input-list-entry inputs old-id new-id))
+      )
+    )
+  )
+)
+
+(define change-input-list-entry
+  (lambda (inputs old-id new-id)
+    (cases input-list inputs
+      (input-list-id (ids)
+        (input-list-id (change-id-list-entry ids old-id new-id))
+      )
+    )
+  )
+)
+
+(define change-id-list-entry
+  (lambda (ids old-id new-id)
+    (if (null? ids)
+      '()
+      (let ((curr-id (ref-id (car ids))))
+        (if (eq? curr-id old-id)
+           (cons (ref-input new-id)
+                 (change-id-list-entry (cdr ids) old-id new-id))
+           (cons (car ids)
+                 (change-id-list-entry (cdr ids) old-id new-id))
+        )
+      )
+    )
+  )
+)
+
+(define ref-id
+  (lambda (in)
+    (cases input in
+      (ref-input (in) in)
+      (else in)
+    )
+  )
+)
+
+;; Une dos listas de gates (sin usar append)
+(define append-gate-lists
+  (lambda (l1 l2)
+    (if (null? l1)
+        l2
+        (cons (car l1) (append-gate-lists (cdr l1) l2))
+    )
+  )
+)
+
+;(change-entry '(G D W A) 'A 'B)
+
 ; funcion que manda a evaluar una lista de inputs perteneciente a un gate
 (define eval-inputs
   (lambda (inputs env)
@@ -444,5 +577,21 @@ let
  c1 = (circuit (gate-list (gate G1 xor (input-list A A))))
 in
  eval-circuit(c1)"))
+
+#|
+let
+c1 = (circuit (gate-list (gate G1 or (input-list A B))
+                         (gate G2 and (input-list A B))
+                         (gate G3 not (input-list G2))
+                         (gate G4 and (input-list G1 G3))
+))
+
+c2 = (circuit (gate-list (gate G5 or (input-list C D))
+                         (gate G6 and (input-list C D))
+                         (gate G7 and (input-list G5 G6))
+))
+in
+connect-circuits(c1, c2, C)
+|#
 
 (interpretador)

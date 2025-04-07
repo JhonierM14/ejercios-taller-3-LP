@@ -282,46 +282,10 @@
   (lambda (prim args env)
     (cases circuit-primitive prim
       (connect-circuits () (list-to-gate-list (connect-circuits-aux (car args) (cadr args) (caddr args) env)))
-      (merge-circuit () (merge-circuit-aux (car args) (cadr args) (caddr args)))
+      (else 'FALTAMERGECIRCUITS)
     )
   )
 )
-
-(define (merge-circuit-aux c1 c2 tipo)
-  (let* (
-         ;; Obtenemos la lista de compuertas de cada circuito
-         (gates1 (cdr (car (cdr c1)))) ; → sacamos la lista de compuertas de gate-list
-         (gates2 (cdr (car (cdr c2))))
-
-         ;; Obtenemos la última compuerta de cada lista
-         (last-g1 (ultimo-de-la-lista gates1))
-         (last-g2 (ultimo-de-la-lista gates2))
-
-         ;; Obtenemos el nombre de cada última compuerta
-         (name1 (second-element last-g1))
-         (name2 (second-element last-g2))
-
-         ;; Construimos un nuevo nombre simbólico
-         (str-name1 (symbol->string name1))
-         (str-name2 (symbol->string name2))
-         (new-name (string->symbol (string-append "merge-" str-name1 "-" str-name2)))
-
-         ;; Creamos la nueva compuerta de salida
-         (merged-gate (list 'gate new-name tipo (list 'input-list name1 name2)))
-
-         ;; Combinamos todas las compuertas en una nueva lista
-         (gates-combined (append-gate-lists (append-gate-lists gates1 gates2) (list merged-gate)))
-
-         ;; Creamos el nuevo gate-list y el circuito
-         (new-gate-list (list 'gate-list gates-combined))
-         (new-circuit (list 'circuit new-gate-list))
-        )
-    new-circuit))
-
-(define second-element
-  (lambda (lst)
-  (car (cdr lst))))
-
   
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?

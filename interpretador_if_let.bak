@@ -65,7 +65,7 @@
     (expression ("(" "circuit" gate-list ")") circuit-exp)
     (expression (circuit-primitive "(" (separated-list expression ",")")")
                 cirapp-exp)
-    
+    (expression (bool) bool-exp)
     (bool ("True") bool-exp-true)
     (bool ("False") bool-exp-false)
     
@@ -137,8 +137,8 @@
 (define init-env
   (lambda ()
     (extend-env
-     '(A B C D)
-     '(True False False True)
+     '(x y z)
+     '(4 5 6)
      (empty-env))))
 
 ;eval-expression: <expression> <enviroment> -> numero
@@ -160,6 +160,7 @@
                (let ((args (eval-rands rands env)))
                  (eval-expression body
                                   (extend-env ids args env))))
+      (bool-exp (b) (eval-bool b))
       (circuit-exp (circ) circ)
       (cirapp-exp (prim rands)
   (let ((evaluated-args (eval-all-but-last rands env))
@@ -296,10 +297,16 @@
 (true-value? 'True)
 (true-value? 'False)
 
-; funcion que retorna el ultimo gate de un arbol de sintaxis abstracta
-(define ultimo-gate
-  (lambda (gl)
-        (ultimo-de-la-lista gl)))
+;###########################################################
+; Implementacion
+;###########################################################
+
+; funcion que evalua y retorna el valor de un booleano en nuestro lenguaje
+(define eval-bool
+  (lambda (b)
+    (cases bool b
+      (bool-exp-true () 'True)
+      (bool-exp-false () 'False))))
 
 ; funcion recursiva que busca el ultimo elemento de la lista
 (define ultimo-de-la-lista
@@ -307,6 +314,21 @@
     (if (null? (cdr lst))
         (car lst)
         (ultimo-de-la-lista (cdr lst)))))
+
+; funcion que retorna el ultimo gate de un arbol de sintaxis abstracta
+(define ultimo-gate
+  (lambda (gl)
+        (ultimo-de-la-lista gl)))
+
+;; Pruebas
+(ultimo-gate '((gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))))
+
+(ultimo-gate '((gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))))
 
 ; funcion auxiliar para calcular el resultado de cada gate en el arbol de sintaxis abstracta
 (define eval-circuit-aux
@@ -375,6 +397,10 @@
   )
 )
 
+;; Pruebas
+(eval-and '(True True))
+(eval-and '(True False))
+
 ; funcion que evalua el tipo or
 (define eval-or
   (lambda (inputs)
@@ -384,12 +410,20 @@
             'True
             (eval-or (cdr inputs))))))
 
+;; Pruebas
+(eval-or '(True False))
+(eval-or '(False False))
+
 ; funcion que evalua el tipo not
 (define eval-not
   (lambda (inputs)
     (if (eqv? (car inputs) 'True)
         'False
         'True))) ; Solo se usa el primero, como unario
+
+;; Pruebas
+(eval-not '(True))
+(eval-not '(False))
 
 ; funcion que evalua el tipo xor
 (define eval-xor
@@ -399,6 +433,10 @@
         (cond
           [(eqv? (car list-inputs) 'False) (eval-xor (cdr list-inputs))]
           [(eqv? (car list-inputs) 'True) (if (eqv? (eval-or(cdr list-inputs)) 'True)  'False 'True)]))))
+
+;; Pruebas
+(eval-xor '(True True))
+(eval-xor '(False True))
 
 (define connect-circuits-aux
   (lambda (F-Circuit S-Circuit Entry env)
@@ -520,70 +558,101 @@
           (bool-exp-false () 'False))))))
 
 
-;###########################################################
-; Implementacion
-;###########################################################
-
-
 ;******************************************************************************************
 ;Pruebas
 
-(scan&parse "eval-circuit((circuit (gate-list (gate G1 or (input-list True False))
-                                               (gate G2 and (input-list True True))
-                                               (gate G3 not (input-list G2))
-                                               (gate G4 and (input-list G1 G3)))))")
+;; ---------- Prueba 3.1 Circuito con una compuerta NOT -----------
 
-(scan&parse "
-(circuit
-(gate-list
-(gate G1 or (input-list A B))
-(gate G2 and (input-list A B))
-(gate G3 not (input-list G2))
-(gate G4 and (input-list G1 G3))))")
-
-(scan&parse "
+#|
 let
- c1 = (circuit (gate-list (gate G1 or (input-list A B))
-                          (gate G2 and (input-list A B))
-                          (gate G3 not (input-list G2))
-                          (gate G4 and (input-list G1 G3))))
+  A = True
 in
- eval-circuit(c1)")
+  let
+    C1 = (circuit (gate-list (gate G1 not (input-list A))))
+  in
+    eval-circuit(C1)
+|#
 
-;; AND
-(eval-program (scan&parse "
-let
- c1 = (circuit (gate-list (gate G1 and (input-list A B))))
-in
- eval-circuit(c1)"))
+;; ----------- Prueba 3.2 Circuito AND simple -----------
 
-;; OR
-(eval-program (scan&parse "
+#|
 let
- c1 = (circuit (gate-list (gate G1 or (input-list A B))))
+  A = True
+  B = True
 in
- eval-circuit(c1)"))
+  let
+    C1 = (circuit (gate-list (gate G1 and (input-list A B))))
+  in
+    eval-circuit(C1)
+|#
 
-;; NOT
-(eval-program (scan&parse "
-let
- c1 = (circuit (gate-list (gate G1 not (input-list A))))
-in
- eval-circuit(c1)"))
+;; ----------- Prueba 3.3 Representacion del XOR -----------
 
-;; XOR
-(eval-program (scan&parse "
-let
- c1 = (circuit (gate-list (gate G1 xor (input-list A A))))
-in
- eval-circuit(c1)")
-)
+; A = True y B = True
 
-(eval-program (scan&parse "
+#|
 let
- c1 = (circuit (gate-list (gate G1 xor (input-list A A))))
+  A = True
+  B = True
 in
- eval-circuit(c1)"))
+  let
+    C1 = (circuit (gate-list (gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))))
+  in
+    eval-circuit(C1)
+|#
+
+; A = True y B = False
+
+#|
+let
+  A = True
+  B = False
+in
+  let
+    C1 = (circuit (gate-list (gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))))
+  in
+    eval-circuit(C1)
+|#
+
+; A = False y B = True
+
+#|
+let
+  A = False
+  B = True
+in
+  let
+    C1 = (circuit (gate-list (gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))))
+  in
+    eval-circuit(C1)
+|#
+
+; A = False y B = False
+
+#|
+let
+  A = False
+  B = False
+in
+  let
+    C1 = (circuit (gate-list (gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))))
+  in
+    eval-circuit(C1)
+|#
+
+;; --------------------- CONENNECT-CIRCUIT ---------------------
 
 #|
 let

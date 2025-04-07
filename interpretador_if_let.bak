@@ -652,41 +652,54 @@ in
     eval-circuit(C1)
 |#
 
-;; --------------------- CONENNECT-CIRCUIT ---------------------
+;; --------------------- CONNECT-CIRCUIT ---------------------
 
 #|
 let
-c1 = (circuit (gate-list (gate G1 or (input-list A B))
-                         (gate G2 and (input-list A B))
-                         (gate G3 not (input-list G2))
-                         (gate G4 and (input-list G1 G3))
-))
-
-c2 = (circuit (gate-list (gate G5 or (input-list C D))
-                         (gate G6 and (input-list C D))
-                         (gate G7 and (input-list G5 G6))
-))
+  A = True
+  B = False
+  C = False
+  D = True
 in
-connect-circuits(c1, c2, C)
+  let
+    c1 = (circuit (gate-list (gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))
+    ))
+
+    c2 = (circuit (gate-list (gate G5 or (input-list C D))
+                           (gate G6 and (input-list C D))
+                           (gate G7 and (input-list G5 G6))
+    ))
+  in
+    connect-circuits(c1, c2, C)
 |#
 
 #|
 let
-c1 = (circuit (gate-list (gate G1 or (input-list A B))
-                         (gate G2 and (input-list A B))
-                         (gate G3 not (input-list G2))
-                         (gate G4 and (input-list G1 G3))
-))
+  A = True
+  B = False
+  C = False
+  D = True
+in
+  let
+    c1 = (circuit (gate-list (gate G1 or (input-list A B))
+                             (gate G2 and (input-list A B))
+                             (gate G3 not (input-list G2))
+                             (gate G4 and (input-list G1 G3))
+    ))
 
-c2 = (circuit (gate-list (gate G5 or (input-list C D))
-                         (gate G6 and (input-list C D))
-                         (gate G7 and (input-list G5 G6))
-))
-in
-let
-c3 = connect-circuits(c1, c2, C)
-in
-eval-circuit(c3)
+    c2 = (circuit (gate-list (gate G5 or (input-list C D))
+                             (gate G6 and (input-list C D))
+                             (gate G7 and (input-list G5 G6))
+    ))    
+    in
+      let
+        c3 = connect-circuits(c1, c2, C)
+      in
+        c3
 |#
+
 
 (interpretador)

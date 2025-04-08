@@ -21,14 +21,16 @@
 ;;                  ::= if <expression> then <expression> else <expression>
 ;;                  ::= let (<identifier> = <expression>)∗ in <expression>
 ;;                  ::= <circuit>
-;; <primitive>      ::= + | - | ∗ | add1 | sub1
-;;                  ::= eval-circuit | connect-circuits | merge-circuits
-;; <circuit>        ::= <gate_list>
-;; <gate_list>      ::= empty | <gate> <gate_list>
-;; <gate>           ::= <identifier> <type> <input_list>
+;;                  ::= <bool>
+;;                  ::= <type>
+;; <primitive>      ::= + | - | ∗ | add1 | sub1 | eval-circuit               
+;; <circuit-primitive> ::=  connect-circuits | merge-circuits
+;; <circuit>        ::= <gate-list>
+;; <gate-list>      ::= empty | <gate> <gate-list>
+;; <gate>           ::= <identifier> <type> <input-list>
 ;; <type>           ::= and | or | not | xor
-;; <input_list>     ::= empty | <bool> <input_list>
-;;                      | <identifier> <input_list>
+;; <input-list>     ::= empty | <bool> <input-list>
+;;                      | <identifier> <input-list>
 ;; <bool>           ::= True | False
 
 ;******************************************************************************************
@@ -172,34 +174,7 @@
   )
 )
 
-;;Hace un append a una lista y un elemento
-(define own-append
-  (lambda (lst elem)
-    (if (null? lst)
-        (list elem)
-        (cons (car lst) (own-append (cdr lst) elem)))))
 
-;;Devuelve la evaluacion todos los rands exceptuando el ultimo
-(define eval-all-but-last
-  (lambda (rands env)
-    (cond
-      [(null? rands) '()]
-      [(null? (cdr rands)) '()]
-      [else
-       (cons (eval-expression (car rands) env)
-             (eval-all-but-last (cdr rands) env))])))
-
-;;Devuelve el ultimo simbolo de una lista de rands
-(define get-symbol-from-last
-  (lambda (rands)
-    (let ((last-exp (car (reverse rands))))
-      (cases expression last-exp
-        (var-exp (id) id)
-        (else (eopl:error 'get-symbol-from-last "Último argumento no es un símbolo válido"))))))
-
-;---------pruebas---------------
-(own-append '(1 2 3) 3)
-(own-append '(1 2 3) 'a)
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
@@ -314,6 +289,31 @@
 ; Implementacion
 ;###########################################################
 
+;;Hace un append a una lista y un elemento
+(define own-append
+  (lambda (lst elem)
+    (if (null? lst)
+        (list elem)
+        (cons (car lst) (own-append (cdr lst) elem)))))
+
+;;Devuelve la evaluacion todos los rands exceptuando el ultimo
+(define eval-all-but-last
+  (lambda (rands env)
+    (cond
+      [(null? rands) '()]
+      [(null? (cdr rands)) '()]
+      [else
+       (cons (eval-expression (car rands) env)
+             (eval-all-but-last (cdr rands) env))])))
+
+;;Devuelve el ultimo simbolo de una lista de rands
+(define get-symbol-from-last
+  (lambda (rands)
+    (let ((last-exp (car (reverse rands))))
+      (cases expression last-exp
+        (var-exp (id) id)
+        (else (eopl:error 'get-symbol-from-last "Último argumento no es un símbolo válido"))))))
+
 ; funcion que evalua y retorna el valor de un booleano en nuestro lenguaje
 (define eval-bool
   (lambda (b)
@@ -342,6 +342,9 @@
 (ultimo-gate '((gate G1 or (input-list A B))
                              (gate G2 and (input-list A B))
                              (gate G3 not (input-list G2))))
+
+(own-append '(1 2 3) 3)
+(own-append '(1 2 3) 'a)
 
 ; funcion auxiliar para calcular el resultado de cada gate en el arbol de sintaxis abstracta
 (define eval-circuit-aux
@@ -715,11 +718,8 @@ in
   let
     c1 = (circuit (gate-list (gate G1 not (input-list A))))
     c2 = (circuit (gate-list (gate G2 and (input-list B C))))
-    in
-      let
-        c3 = connect-circuits(c1, c2, B)
-      in
-        c3
+  in
+    connect-circuits(c1, c2, B)
 |#
 
 ;; ----------- Prueba conectando 3.1 con 3.3 -----------
@@ -736,11 +736,8 @@ in
                              (gate G3 and (input-list A B))
                              (gate G4 not (input-list G3))
                              (gate G5 and (input-list G2 G4))))
-    in
-      let
-        c3 = connect-circuits(c1, c2, A)
-      in
-        c3
+  in
+   connect-circuits(c1, c2, A)
 |#
 
 ;; ----------- Prueba conectando 3.2 con 3.3 -----------
@@ -757,11 +754,9 @@ in
                              (gate G3 and (input-list A B))
                              (gate G4 not (input-list G3))
                              (gate G5 and (input-list G2 G4))))
-    in
-      let
-        c3 = connect-circuits(c1, c2, B)
-      in
-        c3
+  in
+    connect-circuits(c1, c2, B)
+  
 |#
 ;; --------------------- MERGE-CIRCUIT ---------------------
 ;; ----------- Prueba combinando 3.1 con 3.2 -----------

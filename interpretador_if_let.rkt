@@ -163,19 +163,25 @@
       (bool-exp (b) (eval-bool b))
       (circuit-exp (circ) circ)
       (cirapp-exp (prim rands)
-  (let ((evaluated-args (eval-all-but-last rands env))
-        (symbol-arg (get-symbol-from-last rands)))
-    (apply-circuit-primitive prim (append evaluated-args (list symbol-arg)) env)))
-
+                  (let ((evaluated-args (eval-all-but-last rands env))
+                        (symbol-arg (get-symbol-from-last rands)))
+                        (apply-circuit-primitive prim (own-append evaluated-args symbol-arg) env))
+      )
     )
   )
 )
+
+(define own-append
+  (lambda (lst elem)
+    (if (null? lst)
+        (list elem)
+        (cons (car lst) (own-append (cdr lst) elem)))))
 
 (define eval-all-but-last
   (lambda (rands env)
     (cond
       [(null? rands) '()]
-      [(null? (cdr rands)) '()] ; último, no se evalúa
+      [(null? (cdr rands)) '()]
       [else
        (cons (eval-expression (car rands) env)
              (eval-all-but-last (cdr rands) env))])))
@@ -253,17 +259,6 @@
                              (if (number? pos)
                                  (list-ref vals pos)
                                  (apply-env env sym)))))))
-
-(define search-env
-  (lambda (env val)
-    (cases environment env
-      (empty-env-record ()
-        #f)
-      (extended-env-record (syms vals rest-env)
-        (let ((pos (list-find-position val vals)))
-          (if (number? pos)
-              (list-ref syms pos)
-              (search-env rest-env val)))))))
 
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
@@ -653,7 +648,7 @@ in
 |#
 
 ;; --------------------- CONNECT-CIRCUIT ---------------------
-
+;; ----------- Prueba conectando 3.1 con 3.2 -----------
 #|
 let
   A = True
@@ -662,44 +657,55 @@ let
   D = True
 in
   let
-    c1 = (circuit (gate-list (gate G1 or (input-list A B))
-                             (gate G2 and (input-list A B))
-                             (gate G3 not (input-list G2))
-                             (gate G4 and (input-list G1 G3))
-    ))
-
-    c2 = (circuit (gate-list (gate G5 or (input-list C D))
-                           (gate G6 and (input-list C D))
-                           (gate G7 and (input-list G5 G6))
-    ))
-  in
-    connect-circuits(c1, c2, C)
-|#
-
-#|
-let
-  A = True
-  B = False
-  C = False
-  D = True
-in
-  let
-    c1 = (circuit (gate-list (gate G1 or (input-list A B))
-                             (gate G2 and (input-list A B))
-                             (gate G3 not (input-list G2))
-                             (gate G4 and (input-list G1 G3))
-    ))
-
-    c2 = (circuit (gate-list (gate G5 or (input-list C D))
-                             (gate G6 and (input-list C D))
-                             (gate G7 and (input-list G5 G6))
-    ))    
+    c1 = (circuit (gate-list (gate G1 not (input-list A))))
+    c2 = (circuit (gate-list (gate G1 and (input-list B C))))
     in
       let
-        c3 = connect-circuits(c1, c2, C)
+        c3 = connect-circuits(c1, c2, B)
       in
         c3
 |#
 
+;; ----------- Prueba conectando 3.1 con 3.3 -----------
+#|
+let
+  A = True
+  B = False
+  C = False
+  D = True
+in
+  let
+    c1 = (circuit (gate-list (gate G1 not (input-list C))))
+    c2 = (circuit (gate-list (gate G2 or (input-list A B))
+                             (gate G3 and (input-list A B))
+                             (gate G4 not (input-list G3))
+                             (gate G5 and (input-list G2 G4))))
+    in
+      let
+        c3 = connect-circuits(c1, c2, A)
+      in
+        c3
+|#
+
+;; ----------- Prueba conectando 3.2 con 3.3 -----------
+#|
+let
+  A = True
+  B = False
+  C = False
+  D = True
+in
+  let
+    c1 = (circuit (gate-list (gate G1 and (input-list C D))))
+    c2 = (circuit (gate-list (gate G2 or (input-list A B))
+                             (gate G3 and (input-list A B))
+                             (gate G4 not (input-list G3))
+                             (gate G5 and (input-list G2 G4))))
+    in
+      let
+        c3 = connect-circuits(c1, c2, B)
+      in
+        c3
+|#
 
 (interpretador)

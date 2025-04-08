@@ -3,7 +3,6 @@
 ;;-----------------------------------------
 ;; Jhonier Mendez Bravo 202372226
 ;; David Santiago Guerrero Delgado 202324594
-;; Juan Pablo Robayo Maestre 202156743
 ;;-----------------------------------------
 
 ;******************************************************************************************
@@ -49,7 +48,6 @@
   (number
    ("-" digit (arbno digit)) number)))
 
-;Especificación Sintáctica (gramática)
 (define grammar-simple-interpreter
   '((program (expression) a-program)
     (expression (number) lit-exp)
@@ -65,7 +63,9 @@
     (expression ("(" "circuit" gate-list ")") circuit-exp)
     (expression (circuit-primitive "(" (separated-list expression ",")")")
                 cirapp-exp)
+    (expression (type) type-exp)
     (expression (bool) bool-exp)
+    
     (bool ("True") bool-exp-true)
     (bool ("False") bool-exp-false)
     
@@ -89,7 +89,7 @@
     (primitive ("sub1") decr-prim)
     (primitive ("eval-circuit") eval-circuit)
     (circuit-primitive ("connect-circuits") connect-circuits)
-    (circuit-primitive ("merge-circuit") merge-circuit)
+    (circuit-primitive ("merge-circuits") merge-circuits)
   )
 )
 
@@ -160,23 +160,26 @@
                (let ((args (eval-rands rands env)))
                  (eval-expression body
                                   (extend-env ids args env))))
-      (bool-exp (b) (eval-bool b))
       (circuit-exp (circ) circ)
       (cirapp-exp (prim rands)
                   (let ((evaluated-args (eval-all-but-last rands env))
                         (symbol-arg (get-symbol-from-last rands)))
-                        (apply-circuit-primitive prim (own-append evaluated-args symbol-arg) env))
+                        (apply-circuit-primitive prim (append evaluated-args (list symbol-arg)) env))
       )
+      (type-exp (t) (eval-type-merge t))
+      (bool-exp (b) (eval-bool b))
     )
   )
 )
 
+;;Hace un append a una lista y un elemento
 (define own-append
   (lambda (lst elem)
     (if (null? lst)
         (list elem)
         (cons (car lst) (own-append (cdr lst) elem)))))
 
+;;Devuelve la evaluacion todos los rands exceptuando el ultimo
 (define eval-all-but-last
   (lambda (rands env)
     (cond
@@ -186,6 +189,7 @@
        (cons (eval-expression (car rands) env)
              (eval-all-but-last (cdr rands) env))])))
 
+;;Devuelve el ultimo simbolo de una lista de rands
 (define get-symbol-from-last
   (lambda (rands)
     (let ((last-exp (car (reverse rands))))
@@ -193,6 +197,9 @@
         (var-exp (id) id)
         (else (eopl:error 'get-symbol-from-last "Último argumento no es un símbolo válido"))))))
 
+;---------pruebas---------------
+(own-append '(1 2 3) 3)
+(own-append '(1 2 3) 'a)
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
@@ -274,11 +281,22 @@
   )
 )
 
+(define eval-type-merge
+  (lambda (t)
+    (cases type t
+      (and-type () 'and)
+      (or-type () 'or)
+      (not-type () 'not)
+      (xor-type () 'xor)
+      )
+    )
+  )
+
 (define apply-circuit-primitive
   (lambda (prim args env)
     (cases circuit-primitive prim
-      (connect-circuits () (list-to-gate-list (connect-circuits-aux (car args) (cadr args) (caddr args) env)))
-      (else 'FALTAMERGECIRCUITS)
+      (connect-circuits () (gate-list-exp (connect-circuits-aux (car args) (cadr args) (caddr args) env)))
+      (merge-circuits () (gate-list-exp (merge-circuits-aux (car args) (cadr args) (caddr args) (cadddr args) env)))
     )
   )
 )
@@ -526,6 +544,44 @@
 
 ;(change-entry '(G D W A) 'A 'B)
 
+;------------Funciones para merge-circuits------------
+(define merge-circuits-aux
+  (lambda (F-Circuit S-Circuit type id env)
+    (cases gate-list F-Circuit
+      (gate-list-exp (el1-gate-list)
+        (cases gate-list S-Circuit
+          (gate-list-exp (el2-gate-list)
+            (let ((f-id (get-id (ultimo-de-la-lista el1-gate-list)))
+               (s-id (get-id (ultimo-de-la-lista el2-gate-list))))
+               (own-append (append-gate-lists el1-gate-list el2-gate-list) (list-to-gate id type (list (ref-input f-id) (ref-input s-id))))
+            )  
+          )
+        )
+      )
+    )
+  )
+)
+
+; Vuelve una lista una gate-exp
+(define list-to-gate
+  (lambda (id type lista)
+    (gate-exp id (get-gate-type type) (list-to-input lista))))
+
+; Vuelve una lista una input-list
+(define list-to-input
+  (lambda (lista)
+    (input-list-id lista)))
+
+; Vuelve un tipo a un type
+(define get-gate-type
+  (lambda (type-symbol)
+    (cond
+      ((eq? type-symbol 'and) (and-type))
+      ((eq? type-symbol 'or) (or-type))
+      ((eq? type-symbol 'not) (not-type))
+      ((eq? type-symbol 'xor) (xor-type))
+      (else (eopl:error "Tipo de compuerta no reconocido" type-symbol)))))
+
 ; funcion que manda a evaluar una lista de inputs perteneciente a un gate
 (define eval-inputs
   (lambda (inputs env)
@@ -658,7 +714,7 @@ let
 in
   let
     c1 = (circuit (gate-list (gate G1 not (input-list A))))
-    c2 = (circuit (gate-list (gate G1 and (input-list B C))))
+    c2 = (circuit (gate-list (gate G2 and (input-list B C))))
     in
       let
         c3 = connect-circuits(c1, c2, B)
@@ -707,5 +763,62 @@ in
       in
         c3
 |#
+;; --------------------- MERGE-CIRCUIT ---------------------
+;; ----------- Prueba combinando 3.1 con 3.2 -----------
+#|
+let
+  A = True
+  B = False
+  C = False
+  D = True
+in
+  let
+    c1 = (circuit (gate-list (gate G1 not (input-list A))))
+    c2 = (circuit (gate-list (gate G2 and (input-list B C))))
+  in
+    merge-circuits(c1, c2, and, c3)
+|#
 
+;; ----------- Prueba combinando 3.1 con 3.3 -----------
+#|
+let
+  A = True
+  B = False
+  C = False
+  D = True
+in
+  let
+    c1 = (circuit (gate-list (gate G1 not (input-list C))))
+    c2 = (circuit (gate-list (gate G2 or (input-list A B))
+                             (gate G3 and (input-list A B))
+                             (gate G4 not (input-list G3))
+                             (gate G5 and (input-list G2 G4))))
+  in
+    merge-circuits(c1, c2, or, c3)
+|#
+
+;; ----------- Prueba conectando 3.2 con 3.3 con un xor -----------
+#|
+let
+  A = True
+  B = False
+  C = False
+  D = True
+in
+  let
+    c1 = (circuit (gate-list (gate G1 not (input-list A))))
+    c2 = (circuit (gate-list (gate G2 and (input-list B C))))
+    
+    c3 = (circuit (gate-list (gate G3 not (input-list C))))
+    c4 = (circuit (gate-list (gate G4 or (input-list A B))
+                             (gate G5 and (input-list A B))
+                             (gate G6 not (input-list G5))
+                             (gate G7 and (input-list G4 G6))))
+  in
+    let
+      c5 = merge-circuits(c1, c2, and, c7)
+      c6 = merge-circuits(c3, c4, or, c8)
+    in
+      merge-circuits(c5, c6, xor, c9)
+|#
 (interpretador)
